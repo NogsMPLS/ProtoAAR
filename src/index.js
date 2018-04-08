@@ -1,7 +1,7 @@
 import React, { Component } from "react";
 import { render } from "react-dom";
 import { AFrameRenderer, Marker } from "react-web-ar";
-import { Box } from "react-aframe-ar";
+import { Box, Sphere, Entity } from "react-aframe-ar";
 import Pitchfinder from "pitchfinder";
 import MicrophoneStream from "microphone-stream";
 
@@ -37,11 +37,11 @@ class AppScene extends Component {
         var AudioContext = window.AudioContext || window.webkitAudioContext;
         this.audioCtx = new AudioContext();
 
-        this.scriptProcessor = this.audioCtx.createScriptProcessor(2048);
+        this.scriptProcessor = this.audioCtx.createScriptProcessor();
         //analyser node
         this.analyser = this.audioCtx.createAnalyser();
-        this.analyser.smoothingTimeConstant = 0.6;
-        this.analyser.fftSize = 512;
+        this.analyser.smoothingTimeConstant = 0.8;
+        this.analyser.fftSize = 2048;
 
         //stream source
         this.source = this.audioCtx.createMediaStreamSource(stream);
@@ -51,19 +51,28 @@ class AppScene extends Component {
         //connect analyser to script process
         this.analyser.connect(this.scriptProcessor);
         //connect source to destination
-        //this.source.connect(this.audioCtx.destination);
+
+        this.scriptProcessor.connect(this.audioCtx.destination);
 
         this.scriptProcessor.onaudioprocess = AudioProcessingEvent => {
-          this.audioDataArray = new Uint8Array(this.analyser.frequencyBinCount);
-          this.analyser.getByteFrequencyData(this.audioDataArray);
+          //levels
+          this.audioLevels = new Uint8Array(this.analyser.frequencyBinCount);
+          this.analyser.getByteFrequencyData(this.audioLevels);
+          //waveform
+          this.waveform = new Uint8Array(this.analyser.fftSize);
+          this.analyser.getByteTimeDomainData(this.waveform);
+
+          //volume boost
           var boost = 0;
-          this.audioDataArray.forEach(data => {
-            boost += data;
+          for (var i = 0; i < this.audioLevels.length; i++) {
+            boost += this.audioLevels[i];
+          }
+          this.volume = boost / this.audioLevels.length;
+          this.setState({
+            audioLevels: this.audioLevels,
+            waveform: this.waveform,
+            volume: this.volume
           });
-
-          boost = boost / this.audioDataArray.length;
-
-          this.setState({ audioData: this.audioDataArray, boost: boost });
         };
 
         //   this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
@@ -98,48 +107,29 @@ class AppScene extends Component {
     this.setState({ oldSize: this.state.newSize, newSize: size });
   };
   render() {
-    const oldSize = this.state.oldSize;
-    const newSize = this.state.newSize;
-    const newBox1 = (this.state.boost + 1) / 3;
-    const newBox2 = (this.state.boost + 2) / 3;
-    const newBox3 = (this.state.boost + 3) / 3;
-
+    const newBox1 =
+      this.state.audioLevels[15] / 100 > 1
+        ? 1
+        : this.state.audioLevels[15] / 100;
+    const newBox2 =
+      this.state.audioLevels[30] / 100 > 1
+        ? 1
+        : this.state.audioLevels[30] / 100;
+    const newBox3 =
+      this.state.audioLevels[45] / 100 > 1
+        ? 1
+        : this.state.audioLevels[45] / 100;
+    const oldBoost = this.state.oldBoost;
     // const newColor = this.state.newColor;
-    // const oldColor = this.state.oldColor
+    // const oldColor = this.state.oldColor;
     return (
       <AFrameRenderer stats>
         <Marker>
-          <Box color="yellow" material="opacity: 1;" position="0 0.003 0">
-            <a-animation
-              attribute="scale"
-              to={`${newBox1} ${newBox1} ${newBox1}`}
-              easing="linear"
-              dur="100000000"
-            />
-            {/* <a-animation 
-              attribute="color" 
-              from={`${oldColor}`}
-              to={`${newColor}`}
-              easing="linear"
-              dur='100000000'  /> */}
-            {/* <a-animation attribute="rotation" to="360 0 0" dur="5000" easing="linear" repeat="indefinite" /> */}
-          </Box>
-          <Box color="blue" material="opacity: 1;" position="0 0.003 0">
-            <a-animation
-              attribute="scale"
-              to={`${newBox2} ${newBox2} ${newBox2}`}
-              easing="linear"
-              dur="100000000"
-            />
-          </Box>
-          <Box color="green" material="opacity: 1;" position="0 0.003 0">
-            <a-animation
-              attribute="scale"
-              to={`${newBox3} ${newBox3} ${newBox3}`}
-              easing="linear"
-              dur="100000000"
-            />
-          </Box>
+          <Entity
+            material="opacity: 1;"
+            position="0 0 0"
+            geometry="primitive: sphere; segmentsWidth: 1; segmentsHeight: 2, phiStart: 50, phiLength: 360, thetaStart: 0, thetaLength: 360"
+          />
         </Marker>
       </AFrameRenderer>
     );
