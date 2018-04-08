@@ -51,11 +51,11 @@ class AppScene extends Component {
         //connect analyser to script process
         this.analyser.connect(this.scriptProcessor);
         //connect source to destination
-        this.source.connect(this.audioCtx.destination);
+        //this.source.connect(this.audioCtx.destination);
 
         this.scriptProcessor.onaudioprocess = AudioProcessingEvent => {
           this.audioDataArray = new Uint8Array(this.analyser.frequencyBinCount);
-          this.analyser.getByteFrequencyData(array);
+          this.analyser.getByteFrequencyData(this.audioDataArray);
           var boost = 0;
           this.audioDataArray.forEach(data => {
             boost += data;
